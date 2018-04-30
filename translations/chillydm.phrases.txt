@@ -1,0 +1,4 @@
+"TeamChangeBlocked"
+{
+    "en"        "{ColorWarning}You can only join team {matRed}RED"
+}
