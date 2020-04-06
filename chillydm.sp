@@ -1,4 +1,4 @@
-#define PLUGIN_VERSION  "1.0.0"
+#define PLUGIN_VERSION  "1.0.1"
 #define UPDATE_URL      ""
 #define TAG             "CHILLY"
 #define COLOR_TAG       "{matAmber}"
@@ -24,6 +24,8 @@ Handle g_tPlayerChangeTeamTimes
 bool g_bFriendlyFireOn = false;         // Stores weather friendly fire is enabled
 bool g_bPlayerLagCompensation
         [MAXPLAYERS + 1] = false;       // Stores weather player has lag compenstation enabled
+
+int  g_iLagCompenstationCount = 0;      // Stores number of players in lag compenstation
 
 // List of projectile classes to track for
 static const String:g_aProjectileClasses[][] = {
@@ -55,14 +57,14 @@ public OnPluginStart() {
     UpdateFriendlyFireStatus();    
 
     // Event Hooks
-    HookConVarChange(g_cvFriendlyFire, Hook_CvarFriendlyFireChanger);   // Cvar change hook for friendly fire
+    HookConVarChange(g_cvFriendlyFire, Hook_CvarFriendlyFireChanger);       // Cvar change hook for friendly fire
 
-    AddTempEntHook("Fire Bullets", Hook_TEFireBullets);                 // Bullet fire hook
+    AddTempEntHook("Fire Bullets", Hook_TEFireBullets);                     // Bullet fire hook
 
-    HookEvent("player_spawn", Hook_PlayerSpawn);                       // Event hook for player spwan
-    HookEvent("player_death", Hook_PlayerDeath);                       // Event hook for player death
+    HookEvent("player_spawn", Hook_PlayerSpawn);                           // Event hook for player spwan
+    HookEvent("player_death", Hook_PlayerDeath_Pre, EventHookMode_Pre);    // Event hook for player death pre
 
-    AddCommandListener(Command_JoinTeam, "jointeam");                  // Command hook for player jointeam
+    AddCommandListener(Command_JoinTeam, "jointeam");                      // Command hook for player jointeam
 
     for (new i = 1; i < MaxClients; i++) {
         if (IsValidClient(i) && IsClientInGame(i)) {
@@ -122,13 +124,13 @@ public OnGameFrame() {
 
 /* =============== v HOOK EVENT FUNCTIONS v =============== */
 
-/* Event_CvarFriendlyFireChanger
+/* Hook_CvarFriendlyFireChanger
     | Hook Event
     | Executed when cvar is changed
 --------------------------------------------- */
 public Hook_CvarFriendlyFireChanger(Handle:convar, const String:oldValue[], const String:newValue[]) {
     UpdateFriendlyFireStatus();
-
+    UpdateTeamCollision();
     ExecuteConfig();
 }
 
@@ -144,14 +146,16 @@ public Action Hook_PlayerSpawn(Handle:event, const String:name[], bool:dB) {
     if(IsValidClient(client))
         DisableLagCompensation(client);
 
+    SetEntProp(client, Prop_Send, "m_iTeamNum", TEAM_RED);
+
     return Plugin_Continue;
 }
 
-/* Event_PlayerDeath
+/* Hook_PlayerDeath_Pre
     | Hook Event
-    | Executed when a player dies
+    | Executed before player death event is fired
 --------------------------------------------- */
-public Action Hook_PlayerDeath(Handle:event, const String:name[], bool:dB) {
+public Action Hook_PlayerDeath_Pre(Handle:event, const String:name[], bool:dB) {
     if (!g_bFriendlyFireOn) return Plugin_Continue;
 
     int victim   = GetClientOfUserId(GetEventInt(event, "userid"));
@@ -160,18 +164,19 @@ public Action Hook_PlayerDeath(Handle:event, const String:name[], bool:dB) {
     if(IsValidClient(victim))
         DisableLagCompensation(victim);
 
-    if (victim != attacker) {
-        int frags = GetEntProp(attacker, Prop_Data, "m_iFrags");
-        int score = GetEntProp(attacker, Prop_Data, "m_iTotalScore ");
+    if(IsValidClient(attacker))
+        DisableLagCompensation(attacker);
 
-        SetEntProp(attacker, Prop_Data, "m_iFrags", frags + 1);  
-        SetEntProp(attacker, Prop_Data, "m_iTotalScore", score + 1);  
+    if (victim != attacker) {        
+        SetEntProp(victim, Prop_Send, "m_iTeamNum", 0);
+
+        g_tPlayerChangeTeamTimes[victim] = CreateTimer(0.5, Timer_SwitchTeam, victim);
     }
 
     return Plugin_Continue;
 }
 
-/* Event_TEFireBullets
+/* Hook_TEFireBullets
     | Hook Event
     | Executed when a player shoots
 --------------------------------------------- */
@@ -189,7 +194,7 @@ public Action Hook_TEFireBullets(const String:te_name[], const Players[], numCli
     return Plugin_Continue;
 }
 
-/* Event_OnTakeDamage
+/* Hook_OnTakeDamage
     | Hook Event
     | Executed when a player takes damage
 --------------------------------------------- */
@@ -255,6 +260,14 @@ UpdateFriendlyFireStatus() {
     g_bFriendlyFireOn = GetConVarBool(g_cvFriendlyFire);
 }
 
+/* UpdateTeamCollision
+    | Public Function
+    | Updates the value of team collision
+--------------------------------------------- */
+UpdateTeamCollision() {
+    SetConVarInt(FindConVar("tf_avoidteammates"), g_bFriendlyFireOn ? 0 : 1);
+}
+
 /* ClientEnableFakeLagCompensation
     | Public Function
     | Enables lag compenstation for player
@@ -263,9 +276,14 @@ UpdateFriendlyFireStatus() {
 --------------------------------------------- */
 EnableLagCompensation(client) {
     if (g_bPlayerLagCompensation[client]) return;
+    
+    if (GetClientCount() == 1) return;
 
-    g_bPlayerLagCompensation[client] = true;
+    if (GetClientCount() - 1 == g_iLagCompenstationCount) return;
+
     SetEntProp(client, Prop_Send, "m_iTeamNum", 0);
+    g_bPlayerLagCompensation[client] = true;
+    g_iLagCompenstationCount++;
 }
 
 /* ClientDisableFakeLagCompensation
@@ -279,6 +297,7 @@ DisableLagCompensation(client) {
 
     SetEntProp(client, Prop_Send, "m_iTeamNum", 2);
     g_bPlayerLagCompensation[client] = false;
+    g_iLagCompenstationCount--;
 }
 
 /* ExecuteConfig

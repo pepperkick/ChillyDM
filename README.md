@@ -33,4 +33,9 @@ All players are moved to RED team for FFA to work and then players can play as a
 - Pyro and Spy do not work with FFA mode
 
 ## Changelog
+- 1.0.1
+    - Player collision auto enables along with FFA
+    - Worked around player kills going negative
+    - Fixed player respawing when hitscan weapon is used when alone
+    - Fixed all players respawing when all shoot at the same time
 - 1.0.0
