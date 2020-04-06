@@ -19,7 +19,7 @@ This plugin works with the classic tf2 dm plugin soapdm to add new features for 
 - **Mode Config**: The plugin executes config depending on which mode it switches to.
 
 ## Running
-The plugin currently only works when "mp_freindlyfire 1" so the cvar is used for FFA mode enable and disable for now, when the plugin detects FFA gets enabled the plugin executes the config
+The plugin currently only works when "mp_friendlyfire 1" so the cvar is used for FFA mode enable and disable for now, when the plugin detects FFA gets enabled the plugin executes the config
 ```
 cfg/chillydm/ffa.cfg
 ```
