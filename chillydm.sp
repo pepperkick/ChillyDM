@@ -66,8 +66,8 @@ public OnPluginStart() {
 
     AddCommandListener(Command_JoinTeam, "jointeam");                      // Command hook for player jointeam
 
-    for (new i = 1; i < MaxClients; i++) {
-        if (IsValidClient(i) && IsClientInGame(i)) {
+    for (new i = 1; i <= MaxClients; i++) {
+        if (IsClientInGame(i)) {
             SDKHook(i, SDKHook_OnTakeDamage,  Hook_OnTakeDamage);
             SDKHook(i, SDKHook_ShouldCollide, Hook_ClientShouldCollide);
         }
