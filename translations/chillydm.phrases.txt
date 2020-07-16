@@ -1,4 +1,5 @@
 "TeamChangeBlocked"
 {
     "en"        "{ColorWarning}You can only join team {matRed}RED"
+    "ru"        "{ColorWarning}Вы можете присоединиться только к команде {matRed}КРАСНЫХ"
 }
