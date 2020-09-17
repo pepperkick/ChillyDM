@@ -31,8 +31,18 @@ All players are moved to RED team for FFA to work and then players can play as a
 
 ## Known Bugs
 - Pyro and Spy do not work with FFA mode
+- Due to disabling lag compensation on hitscan shots there may be a bit of lag on clients shooting hitscan weapons
+    - This can also cause random hud elements to glitch out a tiny bit
 
 ## Changelog
+- 1.1.0
+    - Fixed constant player and server crashing
+    - Refactored most of everything
+    - Fixed bots (STV / Replay / Other) being moved to red team
+    - Made stickybombs properly collide with red teammates
+    - Removed useless unhook function from OnClientDisconnect
+    - Removed unneccecary includes
+    - Fixed K/D on scoreboard going negative
 - 1.0.1
     - Player collision auto enables along with FFA
     - Worked around player kills going negative
