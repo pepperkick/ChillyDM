@@ -1,13 +1,16 @@
+#pragma semicolon 1
+#pragma newdecls required
+
 #include <sourcemod>
 #include <sdkhooks>
 #include <tf2>
 #include <tf2_stocks>
 
-#define PLUGIN_VERSION  "1.1.1"
+#define PLUGIN_VERSION  "1.1.2"
 
 /* =============== | PLUGIN INFO | =============== */
 
-public Plugin:myinfo =
+public Plugin myinfo =
 {
     name             = "ChillyDM",
     author           = "PepperKick - fixed by stephanie",
@@ -26,7 +29,8 @@ bool g_bPlayerLagCompensation[MAXPLAYERS + 1];
 int g_iLagCompenstationCount = 0;
 
 // List of projectile classes to track for
-static const String:g_aProjectileClasses[][] = {
+static const char g_aProjectileClasses[][] =
+{
     "tf_projectile_rocket",
     "tf_projectile_sentryrocket",
     "tf_projectile_arrow",
@@ -57,9 +61,8 @@ Handle g_cvFriendlyFire = INVALID_HANDLE;
     | Plugin Event
     | Executed when plugin starts
 --------------------------------------------- */
-public OnPluginStart() {
-
-
+public void OnPluginStart()
+{
     Handle hGameData = LoadGameConfigFile("chillygamedata");
 
     StartPrepSDKCall(SDKCall_Entity);
@@ -78,14 +81,11 @@ public OnPluginStart() {
 
     delete hGameData;
 
-
-
-
     CreateConVar(
         "chillydm_version",
         PLUGIN_VERSION,
         "ChillyDM Plugin Version",
-        FCVAR_SPONLY | FCVAR_REPLICATED | FCVAR_NOTIFY
+        FCVAR_SPONLY
     );
 
     g_cvFriendlyFire = FindConVar("mp_friendlyfire");
@@ -111,42 +111,50 @@ public OnPluginStart() {
     }
 }
 
-/* OnClientPostAdminCheck
+/* OnClientPutInServer
     | Plugin Event
-    | Executed when a client is checked for
-     admin
+    | Executed when a client is fully in server
 --------------------------------------------- */
-public OnClientPostAdminCheck(client)
+public void OnClientPutInServer(int client)
 {
     if (IsValidClient(client) && g_bFriendlyFireOn)
     {
         SDKHook(client, SDKHook_OnTakeDamage, Hook_OnTakeDamage);
         TF2_ChangeClientTeam(client, TFTeam_Red);
         DisableLagCompensation(client);
-        ShowVGUIPanel(client, "class_red")
+        ShowVGUIPanel(client, "class_red");
     }
 }
 
-/* OnGameFrame
-    | Plugin Event
-    | Executed when a frame changes in game
+/* OnEntityCreated
+    |
+    | Executed when an entity gets created in game
+    | ( this is way cheaper than OnGameFrame)
 --------------------------------------------- */
-public OnGameFrame()
+public void OnEntityCreated(int entity, const char[] classname)
 {
     if (g_bFriendlyFireOn)
     {
         for (int i = 0; i < sizeof(g_aProjectileClasses); i++)
         {
-            int ent = -1;
-
-            while ((ent = FindEntityByClassname(ent, g_aProjectileClasses[i])) != -1)
+            // does it match any of the ents?
+            if (StrEqual(classname, g_aProjectileClasses[i]))
             {
-                SetEntProp(ent, Prop_Data, "m_iInitialTeamNum", 0);
-                SetEntProp(ent, Prop_Send, "m_iTeamNum", 3);
+                RequestFrame(NextFrameFixProjectile, entity);
             }
         }
     }
 }
+
+void NextFrameFixProjectile(int entity)
+{
+    if (IsValidEntity(entity))
+    {
+        SetEntProp(entity, Prop_Data, "m_iInitialTeamNum", 0);
+        SetEntProp(entity, Prop_Send, "m_iTeamNum", 3);
+    }
+}
+
 
 /* =============== ^ PLUGIN EVENT FUNCTIONS ^ =============== */
 
@@ -156,7 +164,7 @@ public OnGameFrame()
     | Hook Event
     | Executed when cvar is changed
 --------------------------------------------- */
-public Hook_CvarFriendlyFireChanger(Handle:convar, const String:oldValue[], const String:newValue[])
+public void Hook_CvarFriendlyFireChanger(Handle convar, const char[] oldValue, const char[] newValue)
 {
     UpdateFriendlyFireStatus();
     UpdateTeamCollision();
@@ -167,14 +175,14 @@ public Hook_CvarFriendlyFireChanger(Handle:convar, const String:oldValue[], cons
     | Hook Event
     | Executed when a player spawns
 --------------------------------------------- */
-public Action Hook_PlayerSpawn(Handle:event, const String:name[], bool:dB)
+public Action Hook_PlayerSpawn(Handle event, const char[] name, bool dB)
 {
     if (!g_bFriendlyFireOn)
     {
         return Plugin_Continue;
     }
 
-    new client = GetClientOfUserId(GetEventInt(event, "userid"));
+    int client = GetClientOfUserId(GetEventInt(event, "userid"));
 
     if (IsValidClient(client))
     {
@@ -188,7 +196,8 @@ public Action Hook_PlayerSpawn(Handle:event, const String:name[], bool:dB)
     | Hook Event
     | Executed before player death event is fired
 --------------------------------------------- */
-public Action Hook_PlayerDeath_Pre(Handle:event, const String:name[], bool:dB) {
+public Action Hook_PlayerDeath_Pre(Handle event, const char[] name, bool dB)
+{
     if (!g_bFriendlyFireOn)
     {
         return Plugin_Continue;
@@ -227,14 +236,14 @@ public Action Timer_FixKills(Handle timer, int attacker)
     | Hook Event
     | Executed when a player shoots
 --------------------------------------------- */
-public Action Hook_TEFireBullets(const String:te_name[], const Players[], numClients, Float:delay)
+public Action Hook_TEFireBullets(const char[] te_name, const int[] Players, int numClients, float delay)
 {
     if (!g_bFriendlyFireOn)
     {
         return Plugin_Continue;
     }
 
-    new client = TE_ReadNum("m_iPlayer") + 1;
+    int client = TE_ReadNum("m_iPlayer") + 1;
 
     if (IsValidClient(client))
     {
@@ -245,7 +254,7 @@ public Action Hook_TEFireBullets(const String:te_name[], const Players[], numCli
     return Plugin_Continue;
 }
 
-NextFrameDisableLagComp(client)
+void NextFrameDisableLagComp(int client)
 {
     DisableLagCompensation(client);
 }
@@ -254,7 +263,7 @@ NextFrameDisableLagComp(client)
     | Hook Event
     | Executed when a player takes damage
 --------------------------------------------- */
-public Action Hook_OnTakeDamage(victim, &attacker, &inflictor, &Float:damage, &damagetype)
+public Action Hook_OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, int& damagetype)
 {
     if (!g_bFriendlyFireOn)
     {
@@ -273,7 +282,7 @@ public Action Hook_OnTakeDamage(victim, &attacker, &inflictor, &Float:damage, &d
      players can collide
 ---------------------------------------------
 */
-public bool:Hook_ClientShouldCollide(ent, collisiongroup, contentsmask, bool:originalResult)
+public bool Hook_ClientShouldCollide(int ent, int collisiongroup, int contentsmask, bool originalResult)
 {
     return g_bFriendlyFireOn ? true : originalResult;
 }
@@ -284,7 +293,8 @@ public bool:Hook_ClientShouldCollide(ent, collisiongroup, contentsmask, bool:ori
     | Executed when player tries to join
      a team
 --------------------------------------------- */
-public Action:Command_JoinTeam(client, const String:command[], argc) {
+public Action Command_JoinTeam(int client, const char[] command, int argc)
+{
     char arg[128];
     GetCmdArg(1, arg, sizeof(arg));
 
@@ -312,7 +322,8 @@ public Action:Command_JoinTeam(client, const String:command[], argc) {
     | Public Function
     | Updates the status of friendly fire
 --------------------------------------------- */
-UpdateFriendlyFireStatus() {
+void UpdateFriendlyFireStatus()
+{
     g_bFriendlyFireOn = GetConVarBool(g_cvFriendlyFire);
 }
 
@@ -320,7 +331,7 @@ UpdateFriendlyFireStatus() {
     | Public Function
     | Updates the value of team collision
 --------------------------------------------- */
-UpdateTeamCollision()
+void UpdateTeamCollision()
 {
     SetConVarInt(FindConVar("tf_avoidteammates"), g_bFriendlyFireOn ? 0 : 1);
 }
@@ -331,11 +342,15 @@ UpdateTeamCollision()
     ===== Parameters
         | (int) client
 --------------------------------------------- */
-EnableLagCompensation(client)
+void EnableLagCompensation(int client)
 {
-    if (g_bPlayerLagCompensation[client]
+    if
+    (
+        g_bPlayerLagCompensation[client]
+        // this prevents the map restarting when a single player is on the server
         || GetClientCount() == 1
-        || GetClientCount() - 1 == g_iLagCompenstationCount)
+        || GetClientCount() - 1 == g_iLagCompenstationCount
+    )
     {
         return;
     }
@@ -350,7 +365,7 @@ EnableLagCompensation(client)
     ===== Parameters
         | (int) client
 --------------------------------------------- */
-DisableLagCompensation(client)
+void DisableLagCompensation(int client)
 {
     if (!g_bPlayerLagCompensation[client])
     {
@@ -366,7 +381,8 @@ DisableLagCompensation(client)
     | Executes config if friendly fire value
      changes
 --------------------------------------------- */
-ExecuteConfig() {
+void ExecuteConfig()
+{
     if (g_bFriendlyFireOn)
     {
         ServerCommand("exec chillydm/ffa");
@@ -381,21 +397,19 @@ ExecuteConfig() {
 
 /* =============== | OTHER FUNCTIONS | =============== */
 
-stock bool IsValidClient(client)
+bool IsValidClient(int client)
 {
-    if  (
-            client <= 0                 ||
-            client > MaxClients         ||
-            !IsClientConnected(client)  ||
-            IsFakeClient(client)
-        )
-    {
-        return false;
-    }
-    return IsClientInGame(client);
+    return
+    (
+        (0 < client <= MaxClients)
+        && IsClientInGame(client)
+        // don't bother sdkhooking stv or replay bots lol
+        && !IsClientSourceTV(client)
+        && !IsClientReplay(client)
+    );
 }
 
-void ChangeClientTeamEx(iClient, int iNewTeamNum)
+void ChangeClientTeamEx(int iClient, int iNewTeamNum)
 {
     int iTeamNum = GetEntProp(iClient, Prop_Send, "m_iTeamNum");
 
