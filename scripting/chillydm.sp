@@ -140,7 +140,7 @@ public void OnEntityCreated(int entity, const char[] classname)
             // does it match any of the ents?
             if (StrEqual(classname, g_aProjectileClasses[i]))
             {
-                RequestFrame(NextFrameFixProjectile, entity);
+                RequestFrame(NextFrameFixProjectile, EntIndexToEntRef(entity));
             }
         }
     }
@@ -150,6 +150,7 @@ void NextFrameFixProjectile(int entity)
 {
     if (IsValidEntity(entity))
     {
+        entity = EntRefToEntIndex(entity);
         SetEntProp(entity, Prop_Data, "m_iInitialTeamNum", 0);
         SetEntProp(entity, Prop_Send, "m_iTeamNum", 3);
     }
@@ -367,7 +368,13 @@ void EnableLagCompensation(int client)
 --------------------------------------------- */
 void DisableLagCompensation(int client)
 {
-    if (!g_bPlayerLagCompensation[client])
+    if
+    (
+        g_bPlayerLagCompensation[client]
+        // this prevents the map restarting when a single player is on the server
+        || GetClientCount() == 1
+        || GetClientCount() - 1 == g_iLagCompenstationCount
+    )
     {
         return;
     }
